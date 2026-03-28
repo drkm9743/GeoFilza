@@ -1,0 +1,73 @@
+name: Build GeoFilza18 IPA
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.0.app || sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build GeoFilza18
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project GeoFilza18.xcodeproj \
+            -scheme GeoFilza18 \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            2>&1 | tee build/xcodebuild.log
+
+      - name: Surface build errors
+        if: failure()
+        run: |
+          echo "::group::Build Errors"
+          grep -E '(error:|fatal error|linker command failed|undefined symbol)' build/xcodebuild.log | while read line; do
+            echo "::error::$line"
+          done
+          echo "::endgroup::"
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: build/xcodebuild.log
+
+      - name: Package IPA
+        run: |
+          APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::.app not found in build output"
+            exit 1
+          fi
+          echo "Found app: $APP_PATH"
+
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r GeoFilza18.ipa Payload
+          echo "IPA created: $(ls -lh GeoFilza18.ipa)"
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: GeoFilza18
+          path: GeoFilza18.ipa
