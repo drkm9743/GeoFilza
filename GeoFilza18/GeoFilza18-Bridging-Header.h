@@ -17,4 +17,3 @@ bool haskernproc(void);
 NSString *getkerncache(void);
 void clearkerncachedata(void);
 uint64_t getrootvnodeoffset(void);
-bool hasrootvnodeoffset(void);
