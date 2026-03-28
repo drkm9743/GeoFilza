@@ -44,6 +44,22 @@ struct HomeView: View {
 
                 // ── Exploit ──
                 if hasoffsets {
+                    if !hasrootvnodeoffset() {
+                        Section("Rootvnode Offset Missing") {
+                            Text("Your cached offsets don't include rootvnode. Clear and re-download the kernelcache to resolve it.")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            Button("Clear & Re-download Kernelcache") {
+                                clearkerncachedata()
+                                hasoffsets = false
+                                DispatchQueue.global(qos: .userInitiated).async {
+                                    let ok = dlkerncache()
+                                    DispatchQueue.main.async { hasoffsets = ok }
+                                }
+                            }
+                        }
+                    }
+
                     Section("Kernel Read/Write") {
                         Button(mgr.dsrunning ? "Running..." : "Run Exploit") {
                             mgr.run()
