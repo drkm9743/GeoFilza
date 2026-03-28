@@ -9,13 +9,22 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.0.app || sudo xcode-select -s /Applications/Xcode.app
+        run: |
+          # List available Xcode versions for debugging
+          ls -d /Applications/Xcode*.app 2>/dev/null || true
+          # Pick latest Xcode 16.x, fall back to default
+          XCODE=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            XCODE="/Applications/Xcode.app"
+          fi
+          echo "Using: $XCODE"
+          sudo xcode-select -s "$XCODE"
 
       - name: Show Xcode version
         run: xcodebuild -version
@@ -23,6 +32,7 @@ jobs:
       - name: Build GeoFilza18
         run: |
           set -o pipefail
+          mkdir -p build
           xcodebuild \
             -project GeoFilza18.xcodeproj \
             -scheme GeoFilza18 \
@@ -40,9 +50,13 @@ jobs:
         if: failure()
         run: |
           echo "::group::Build Errors"
-          grep -E '(error:|fatal error|linker command failed|undefined symbol)' build/xcodebuild.log | while read line; do
-            echo "::error::$line"
-          done
+          if [ -f build/xcodebuild.log ]; then
+            grep -E '(error:|fatal error|linker command failed|undefined symbol)' build/xcodebuild.log | head -50 | while read line; do
+              echo "::error::$line"
+            done
+          else
+            echo "::error::xcodebuild.log not found - build may have crashed before producing output"
+          fi
           echo "::endgroup::"
 
       - name: Upload build log
